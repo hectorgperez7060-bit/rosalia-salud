@@ -763,8 +763,19 @@ async function init(){
   }
 }
 function registrarSW(){
-  if(!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  // ANTES: registrábamos un Service Worker que cacheaba la app. Ese caché hacía
+  // que, al refrescar, apareciera la versión nueva un segundo y volviera la vieja.
+  // AHORA: lo desactivamos por completo — desregistramos cualquier SW viejo y
+  // borramos todos los cachés, para que siempre se cargue la versión actual.
+  try{
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.getRegistrations()
+        .then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});
+    }
+    if(window.caches && caches.keys){
+      caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});
+    }
+  }catch(e){}
 }
 
 /* ---------- utilidades ---------- */
