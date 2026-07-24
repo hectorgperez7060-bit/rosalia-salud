@@ -711,6 +711,26 @@ function seed(){
 }
 
 function fechaPill(){ const t=new Date(); $('#todayPill').textContent = t.toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'short'}); }
+/* Autocorrección: si hay datos viejos guardados en la nube sin completar
+   (de antes de tener esta info), los completa con los valores correctos
+   una sola vez, sin pisar nada que la familia ya haya editado a mano. */
+async function migrarDatos(){
+  let cambio=false;
+  if(S.obrasocial && !S.obrasocial.telefono){
+    S.obrasocial = Object.assign({
+      nombre:'OSADEF', telefono:'0800-666-2333 (ADEF) · 0800-345-0299 (cartilla)',
+      email:'moron@adef.org.ar', web:'https://www.adef.org.ar',
+      sucursal:'Sucursal Morón', direccionSucursal:'Av. Gral. Miguel de Azcuénaga 741, Morón (tel. 011 4628-0097)'
+    }, S.obrasocial);
+    cambio=true;
+  }
+  const t=personaTitular();
+  if(t && t.id && !t.direccionTrabajo){
+    const i=S.personas.findIndex(p=>p.id===t.id);
+    if(i>=0){ S.personas[i].direccionTrabajo='Maipú 589, Merlo (Farmacia Nueva Merlo)'; cambio=true; }
+  }
+  if(cambio){ await sSet('obrasocial',S.obrasocial); await sSet('personas',S.personas); }
+}
 async function init(){
   loadCfg();
   // Cargar datos y PINTAR YA — la pantalla nunca queda en blanco
@@ -719,15 +739,21 @@ async function init(){
     let any=false;
     for(const k of KEYS){ const v=await sGet(k); if(v!=null){ S[k]=v; any=true; } }
     if(!any || !S.personas || !S.personas.length){ seed(); await saveAll(); }
+    else{ await migrarDatos(); }
   }catch(e){ if(!S.personas || !S.personas.length) seed(); }
   buildTabs(); render(); fechaPill();
+  registrarSW();
   // Firebase en segundo plano, con límite de tiempo, sin bloquear la app
   if(cfg.config && window.firebase){
     try{
       const ok = await Promise.race([ initFirebase(false), new Promise(r=>setTimeout(()=>r(false), 8000)) ]);
-      if(ok){ _backend='firebase'; try{ await ensureFamilyDoc(); }catch(e){ console.warn(e); } subscribe(); render(); }
+      if(ok){ _backend='firebase'; try{ await ensureFamilyDoc(); await migrarDatos(); }catch(e){ console.warn(e); } subscribe(); render(); }
     }catch(e){ console.warn('firebase bg', e); }
   }
+}
+function registrarSW(){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 
 /* ---------- utilidades ---------- */
