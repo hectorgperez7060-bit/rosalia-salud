@@ -306,7 +306,9 @@ async function initFirebase(reconnect){
       else { fb.app=firebase.app(); }
     } else { fb.app=firebase.initializeApp(cfg.config); }
     fb.db=firebase.firestore();
-    try{ await fb.db.enablePersistence({synchronizeTabs:true}); }catch(e){}
+    // El caché offline NO debe bloquear la conexión: si tarda o falla (p. ej.
+    // con varias pestañas abiertas), no importa. Lo lanzamos sin await.
+    try{ fb.db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
     fb.auth=firebase.auth();
     try{ await fb.auth.signInAnonymously(); }catch(e){ console.warn('anon auth', e); }
     fb.familyId=cfg.familyId; fb.ready=true; return true;
