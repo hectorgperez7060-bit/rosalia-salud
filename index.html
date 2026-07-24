@@ -743,12 +743,17 @@ async function init(){
   }catch(e){ if(!S.personas || !S.personas.length) seed(); }
   buildTabs(); render(); fechaPill();
   registrarSW();
-  // Firebase en segundo plano, con límite de tiempo, sin bloquear la app
+  // Firebase en segundo plano — la app YA se pintó arriba, así que NO abandonamos
+  // la conexión si el primer handshake tarda. En cuanto Firebase queda listo,
+  // pasamos a modo familiar compartido y volvemos a renderizar.
   if(cfg.config && window.firebase){
-    try{
-      const ok = await Promise.race([ initFirebase(false), new Promise(r=>setTimeout(()=>r(false), 8000)) ]);
-      if(ok){ _backend='firebase'; try{ await ensureFamilyDoc(); await migrarDatos(); }catch(e){ console.warn(e); } subscribe(); render(); }
-    }catch(e){ console.warn('firebase bg', e); }
+    initFirebase(false).then(async ok=>{
+      if(ok && fb.ready){
+        _backend='firebase';
+        try{ await ensureFamilyDoc(); await migrarDatos(); }catch(e){ console.warn(e); }
+        subscribe(); render();
+      }
+    }).catch(e=>console.warn('firebase bg', e));
   }
 }
 function registrarSW(){
