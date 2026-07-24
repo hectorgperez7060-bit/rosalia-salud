@@ -306,9 +306,9 @@ async function initFirebase(reconnect){
       else { fb.app=firebase.app(); }
     } else { fb.app=firebase.initializeApp(cfg.config); }
     fb.db=firebase.firestore();
-    // El caché offline NO debe bloquear la conexión: si tarda o falla (p. ej.
-    // con varias pestañas abiertas), no importa. Lo lanzamos sin await.
-    try{ fb.db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
+    // SIN caché offline a propósito: la copia guardada en el dispositivo hacía
+    // que apareciera un instante una versión vieja/vacía y tapara los datos
+    // reales de la nube (el "aparecen y se van"). Siempre leemos de la nube.
     fb.auth=firebase.auth();
     try{ await fb.auth.signInAnonymously(); }catch(e){ console.warn('anon auth', e); }
     fb.familyId=cfg.familyId; fb.ready=true; return true;
@@ -325,7 +325,11 @@ function subscribe(){
   if(fb.unsub) fb.unsub();
   let primero=true;
   fb.unsub=famRef().onSnapshot(snap=>{
-    const d=snap.data()||{}; let got=false;
+    const d=snap.data()||{};
+    // Blindaje: una foto sin personas (cache viejo/offline/vacío) NUNCA debe
+    // borrar de la pantalla los datos reales que ya se están viendo.
+    if(!d.personas || !d.personas.length){ primero=false; return; }
+    let got=false;
     KEYS.forEach(k=>{ if(d[k]!=null){ S[k]=d[k]; got=true; } });
     if(got){
       if(!primero && !snap.metadata.hasPendingWrites) avisarCambioFamilia();
